@@ -1,10 +1,6 @@
 #include <znc/IRCNetwork.h>
 #include <znc/Chan.h>
 
-using std::map;
-using std::set;
-using std::vector;
-
 #define IDLERPG_JOIN_LOGIN_WAIT_TIME 10
 
 class CIdleRPGMod;
@@ -180,5 +176,5 @@ void TModInfo<CIdleRPGMod>(CModInfo& Info) {
 
 NETWORKMODULEDEFS(
 	CIdleRPGMod,
-	t_s("Automatically handles your login to IdleRPG games/channels.")
+	t_s("Automatically handles your login to an IdleRPG game/channel")
 )
