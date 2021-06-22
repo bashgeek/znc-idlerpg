@@ -108,10 +108,17 @@ class CIdleRPGMod : public CModule {
 		}
 
 		void OnJoin(const CNick& Nick, CChan& Channel) override {
+			// Setup done?
 			if (m_channel.empty()) {
 				return;
 			}
 
+			// Correct channel?
+			if (Channel.GetName().AsLower() != m_channel.AsLower()) {
+				return;
+			}
+
+			// Either Bot or user joins
 			if (Nick.GetNick() != m_botnick && !GetNetwork()->GetCurNick().Equals(Nick.GetNick())) {
 				return;
 			}
@@ -171,7 +178,7 @@ void CIdleRPGModTimer::RunJob() { ((CIdleRPGMod*)GetModule())->Login(); }
 template <>
 void TModInfo<CIdleRPGMod>(CModInfo& Info) {
 	Info.AddType(CModInfo::NetworkModule);
-	// Info.SetWikiPage("perform");
+	Info.SetWikiPage("idlerpg");
 }
 
 NETWORKMODULEDEFS(
