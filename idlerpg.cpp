@@ -10,7 +10,6 @@ class CIdleRPGMod;
 class CIdleRPGChannel {
   public:
     CIdleRPGChannel() {}
-    CIdleRPGChannel(const CString& sLine) { FromString(sLine); }
     virtual ~CIdleRPGChannel() {}
 
     const CString& GetChannel() const { return m_Channel; }
@@ -43,7 +42,7 @@ class CIdleRPGChannel {
 
 class CIdleRPGModTimer : public CTimer {
   public:
-    CIdleRPGModTimer(CModule* pModule, CIdleRPGChannel* sChannel,
+    CIdleRPGModTimer(CModule* pModule, CIdleRPGChannel& sChannel,
                      unsigned int uInterval, unsigned int uCycles,
                      const CString& sLabel, const CString& sDescription)
         : CTimer(pModule, uInterval, uCycles, sLabel, sDescription) {
@@ -56,7 +55,7 @@ class CIdleRPGModTimer : public CTimer {
     void RunJob() override;
 
   private:
-    CIdleRPGChannel* pChannel;
+    CIdleRPGChannel pChannel;
 };
 
 class CIdleRPGMod : public CModule {
@@ -82,26 +81,20 @@ class CIdleRPGMod : public CModule {
     ~CIdleRPGMod() override {}
 
     bool OnLoad(const CString& sArgs, CString& sMessage) override {
+        m_Channels.empty();
+
         // Load current channels
         for (MCString::iterator it = BeginNV(); it != EndNV(); ++it) {
             const CString& sLine = it->second;
-            CIdleRPGChannel* pChannel = new CIdleRPGChannel;
+            CIdleRPGChannel pChannel;
+            auto search = m_Channels.find(pChannel.GetChannel());
 
-            if (!pChannel->FromString(sLine) ||
-                FindChannel(pChannel->GetChannel())) {
-                delete pChannel;
-            } else {
-                m_Channels[pChannel->GetChannel()] = pChannel;
+            if (pChannel.FromString(sLine) && search == m_Channels.end()) {
+                m_Channels[pChannel.GetChannel()] = pChannel;
             }
         }
 
         return true;
-    }
-
-    CIdleRPGChannel* FindChannel(const CString& sChannel) {
-        map<CString, CIdleRPGChannel*>::iterator it = m_Channels.find(sChannel);
-
-        return (it != m_Channels.end()) ? it->second : nullptr;
     }
 
     void CommandList() {
@@ -118,10 +111,10 @@ class CIdleRPGMod : public CModule {
 
         for (const auto& it : m_Channels) {
             Table.AddRow();
-            Table.SetCell(t_s("Channel"), it.second->GetChannel());
-            Table.SetCell(t_s("Botnick"), it.second->GetBotnick());
-            Table.SetCell(t_s("Username"), it.second->GetUsername());
-            Table.SetCell(t_s("Password"), it.second->GetPassword());
+            Table.SetCell(t_s("Channel"), it.second.GetChannel());
+            Table.SetCell(t_s("Botnick"), it.second.GetBotnick());
+            Table.SetCell(t_s("Username"), it.second.GetUsername());
+            Table.SetCell(t_s("Password"), it.second.GetPassword());
         }
 
         PutModule(Table);
@@ -156,14 +149,13 @@ class CIdleRPGMod : public CModule {
             return;
         }
 
-        CIdleRPGChannel* pChannel = new CIdleRPGChannel();
-        pChannel->FromString(sChannel + " " + sBotnick + " " + sUsername + " " +
-                             sPassword);
-        m_Channels[pChannel->GetChannel()] = pChannel;
-        SetNV(pChannel->GetChannel(), pChannel->ToString());
+        CIdleRPGChannel pChannel;
+        pChannel.FromString(sChannel + " " + sBotnick + " " + sUsername + " " +
+                            sPassword);
+        m_Channels[pChannel.GetChannel()] = pChannel;
+        SetNV(pChannel.GetChannel(), pChannel.ToString());
 
-        PutModule(
-            t_f("Saved settings for channel {1}")(pChannel->GetChannel()));
+        PutModule(t_f("Saved settings for channel {1}")(pChannel.GetChannel()));
     }
 
     void CommandDel(const CString& sLine) {
@@ -173,15 +165,14 @@ class CIdleRPGMod : public CModule {
         }
         CString sChannel = sLine.Token(1).AsLower();
 
-        map<CString, CIdleRPGChannel*>::iterator it = m_Channels.find(sChannel);
+        auto search = m_Channels.find(sChannel);
 
-        if (it == m_Channels.end()) {
+        if (search == m_Channels.end()) {
             PutModule(t_f("Channel {1} not found")(sChannel));
             return;
         }
 
-        delete it->second;
-        m_Channels.erase(it);
+        m_Channels.erase(search);
         DelNV(sChannel);
         PutModule(t_f("Channel {1} removed")(sChannel));
     }
@@ -189,19 +180,22 @@ class CIdleRPGMod : public CModule {
     void CommandLogin(const CString& sLine) {
         CString sChannel = sLine.Token(1).AsLower();
         if (!sChannel.empty()) {
-            CIdleRPGChannel* fChannel = FindChannel(sChannel);
-            if (!fChannel) {
+            auto search = m_Channels.find(sChannel);
+
+            if (search == m_Channels.end()) {
                 PutModule(t_f("Invalid channel {1}")(sChannel));
                 return;
             }
 
+            CIdleRPGChannel fChannel = search->second;
             Login(fChannel);
             return;
         }
 
         // Go through all channels and login
         for (const auto& it : m_Channels) {
-            Login(it.second);
+            CIdleRPGChannel fChannel = it.second;
+            Login(fChannel);
         }
     }
 
@@ -211,29 +205,29 @@ class CIdleRPGMod : public CModule {
         PutModule(t_s("All settings cleared!"));
     }
 
-    void QueueLogin(CIdleRPGChannel* sChan) {
-        RemTimer("idlerpg_login_timer_" + sChan->GetChannel());
+    void QueueLogin(CIdleRPGChannel& sChan) {
+        RemTimer("idlerpg_login_timer_" + sChan.GetChannel());
         AddTimer(
             new CIdleRPGModTimer(this, sChan, IDLERPG_JOIN_LOGIN_WAIT_TIME, 1,
-                                 "idlerpg_login_timer_" + sChan->GetChannel(),
+                                 "idlerpg_login_timer_" + sChan.GetChannel(),
                                  "Tries login to IdleRPG bot"));
     }
 
-    void Login(CIdleRPGChannel* sChan) {
+    void Login(CIdleRPGChannel& sChan) {
         // Valid channel?
-        CChan* pChan = this->GetNetwork()->FindChan(sChan->GetChannel());
+        CChan* pChan = this->GetNetwork()->FindChan(sChan.GetChannel());
         if (!pChan) {
             PutModule(t_f("Error logging in: Invalid channel [{1}]")(
-                sChan->GetChannel()));
+                sChan.GetChannel()));
             return;
         }
 
         // Botnick on channel?
-        CNick* pBot = pChan->FindNick(sChan->GetBotnick());
+        CNick* pBot = pChan->FindNick(sChan.GetBotnick());
         if (!pBot) {
             PutModule(
                 t_f("Error logging in: Bot [{1}] not found in channel [{2}]")(
-                    sChan->GetBotnick(), sChan->GetChannel()));
+                    sChan.GetBotnick(), sChan.GetChannel()));
             return;
         }
 
@@ -241,14 +235,14 @@ class CIdleRPGMod : public CModule {
         if (!pBot->HasPerm(CChan::Op)) {
             PutModule(t_f(
                 "Error logging in: Bot [{1}] not operator in in channel [{2}]")(
-                sChan->GetBotnick(), sChan->GetChannel()));
+                sChan.GetBotnick(), sChan.GetChannel()));
             return;
         }
 
-        PutIRC("PRIVMSG " + sChan->GetBotnick() + " :login " +
-               sChan->GetUsername() + " " + sChan->GetPassword());
-        PutModule(t_s("Logging you in with " + sChan->GetBotnick() + " on " +
-                      sChan->GetChannel()));
+        PutIRC("PRIVMSG " + sChan.GetBotnick() + " :login " +
+               sChan.GetUsername() + " " + sChan.GetPassword());
+        PutModule(t_s("Logging you in with " + sChan.GetBotnick() + " on " +
+                      sChan.GetChannel()));
     }
 
     void OnJoin(const CNick& Nick, CChan& Channel) override {
@@ -258,13 +252,15 @@ class CIdleRPGMod : public CModule {
         }
 
         // Correct channel?
-        CIdleRPGChannel* fChannel = FindChannel(Channel.GetName().AsLower());
-        if (!fChannel) {
+        auto search = m_Channels.find(Channel.GetName().AsLower());
+        if (search == m_Channels.end()) {
             return;
         }
 
+        CIdleRPGChannel fChannel = search->second;
+
         // Either Bot or user joins
-        if (Nick.GetNick() != fChannel->GetBotnick() &&
+        if (Nick.GetNick() != fChannel.GetBotnick() &&
             !GetNetwork()->GetCurNick().Equals(Nick.GetNick())) {
             return;
         }
@@ -273,7 +269,7 @@ class CIdleRPGMod : public CModule {
     }
 
   private:
-    map<CString, CIdleRPGChannel*> m_Channels;
+    map<CString, CIdleRPGChannel> m_Channels;
 };
 
 void CIdleRPGModTimer::RunJob() {
