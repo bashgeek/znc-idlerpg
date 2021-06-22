@@ -3,7 +3,7 @@ ZNC module to handle logins to an IdleRPG game/channel on IRC automatically
 
 ## Instructions
 - Can be loaded as a network module
-- Compile the module with `znc-buildmod idlerpg.cpp` and copy it to your modules directory
+- Compile the module with `znc-buildmod idlerpg.cpp` and copy it to your modules directory (and/or refer to https://wiki.znc.in/Compiling_modules for help)
 - Load the mod in each network your want it to be active via `/znc loadmod idlerpg`
 - Setup your IRPG account via `/znc *idlerpg set #channel irpgbotnickname username password`
 - That's it!
