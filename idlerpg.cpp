@@ -231,8 +231,8 @@ class CIdleRPGMod : public CModule {
             return;
         }
 
-        // Bot has op?
-        if (!pBot->HasPerm(CChan::Op)) {
+        // Bot has op or owner?
+        if (!pBot->HasPerm(CChan::Op) && !pBot->HasPerm(CChan::Owner)) {
             PutModule(t_f(
                 "Error logging in: Bot [{1}] not operator in in channel [{2}]")(
                 sChan.GetBotnick(), sChan.GetChannel()));
